@@ -77,8 +77,13 @@ corpus — and skip building altogether:
 ```console
 $ curl -L -o data/licensedb.sqlite \
     https://github.com/tardyp/license-rag/releases/latest/download/licensedb.sqlite
+$ curl -LO https://github.com/tardyp/license-rag/releases/latest/download/licensedb.sqlite.sha256
+$ shasum -a 256 -c licensedb.sqlite.sha256
 $ license-rag query LICENSE --db data/licensedb.sqlite
 ```
+
+Every release carries the database and its sha256, and records the corpus revision it was built
+from.
 
 ## Build
 

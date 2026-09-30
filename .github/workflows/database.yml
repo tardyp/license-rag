@@ -47,7 +47,9 @@ jobs:
             echo "built:$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             echo "database_size_bytes:$(stat -c %s data/licensedb.sqlite)"
           } | tee build.env
-          sha256sum data/licensedb.sqlite | tee data/licensedb.sqlite.sha256
+          # A bare filename, so that `sha256sum -c` works wherever the file is
+          # downloaded, not just from a checkout of this repository.
+          (cd data && sha256sum licensedb.sqlite) | tee data/licensedb.sqlite.sha256
 
       - name: Publish the release asset
         env:
