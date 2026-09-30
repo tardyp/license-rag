@@ -1,0 +1,6 @@
+# The retrieval database is a build artifact: rebuild with `license-rag build`.
+data/
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc

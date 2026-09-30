@@ -1,0 +1,65 @@
+name: Database
+
+# Rebuilds the retrieval database from the latest LicenseDB corpus published on
+# GitHub and attaches it to a dated release, so that the database can be
+# downloaded without building it. The corpus is regenerated upstream daily; a
+# weekly rebuild keeps the published database fresh at no cost.
+on:
+  schedule:
+    - cron: "17 4 * * 1"   # Mondays, 04:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  LICENSE_RAG_CACHE: ${{ github.workspace }}/.corpus-cache
+  HF_HOME: ${{ github.workspace }}/.hf-cache
+
+jobs:
+  publish:
+    name: build and publish the database
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.LICENSE_RAG_CACHE }}
+            ${{ env.HF_HOME }}
+          key: license-rag-data-v1-${{ hashFiles('pyproject.toml') }}
+      - run: uv sync
+
+      - name: Build the database from the latest LicenseDB
+        run: uv run license-rag build --refresh --db data/licensedb.sqlite
+
+      - name: Evaluate the database
+        run: uv run python evals/evaluate.py --db data/licensedb.sqlite --limit 60
+
+      - name: Record the corpus revision and checksum
+        id: build
+        run: |
+          {
+            uv run license-rag info | python -c "import json,sys; print('corpus:' + json.load(sys.stdin)['meta']['corpus_source'])"
+            echo "built:$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "database_size_bytes:$(stat -c %s data/licensedb.sqlite)"
+          } | tee build.env
+          sha256sum data/licensedb.sqlite | tee data/licensedb.sqlite.sha256
+
+      - name: Publish the release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="database-$(date -u +%Y%m%d)"
+          notes="$(printf 'Database built from %s\n\n%s\n' \
+            "$(grep '^corpus:' build.env | cut -d: -f2-)" "$(cat data/licensedb.sqlite.sha256)")"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" data/licensedb.sqlite data/licensedb.sqlite.sha256 --clobber
+          else
+            gh release create "$tag" data/licensedb.sqlite data/licensedb.sqlite.sha256 \
+              --title "LicenseDB ${tag#database-}" --notes "$notes"
+          fi
+          gh release view "$tag" --json tagName,url,assets --jq '{tagName, url, assets: [.assets[].name]}'

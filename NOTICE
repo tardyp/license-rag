@@ -1,0 +1,24 @@
+license-rag
+Copyright (c) 2026 Pierre Tardy and others.
+
+This product is licensed under the Apache License, version 2.0 (see LICENSE).
+
+It builds its database from the ScanCode LicenseDB corpus, which is not
+vendored here: the corpus is downloaded at build time from
+https://github.com/aboutcode-org/scancode-licensedb.
+
+ScanCode LicenseDB data is licensed under the Creative Commons Attribution
+License 4.0 (CC-BY-4.0). Some licenses, such as the GNU GENERAL PUBLIC LICENSE,
+are subject to other licenses; see the corresponding license text for the
+specific license conditions.
+
+ScanCode is a trademark of nexB Inc. ScanCode Toolkit is a free Software
+Composition Analysis tool from nexB Inc. and others:
+https://github.com/aboutcode-org/scancode-toolkit
+
+No content from ScanCode LicenseDB should be considered or used as legal
+advice. Consult an attorney for any legal advice.
+
+The static embedding model used by the semantic channel, minishlab/potion-base-8M,
+is downloaded from Hugging Face on first use and is distributed under the
+MIT license by Minish Lab.

@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The corpus and the embedding model are cached between runs; both are large
+  # downloads that rarely change.
+  LICENSE_RAG_CACHE: ${{ github.workspace }}/.corpus-cache
+  HF_HOME: ${{ github.workspace }}/.hf-cache
+
+jobs:
+  tests:
+    name: tests (python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - run: uv sync --group dev
+      # No network and no model download: the tests build a synthetic corpus.
+      - run: uv run pytest
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --group dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  database:
+    name: build database and evaluate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.LICENSE_RAG_CACHE }}
+            ${{ env.HF_HOME }}
+          key: license-rag-data-v1-${{ hashFiles('pyproject.toml') }}
+      - run: uv sync
+
+      - name: Build the database from the latest LicenseDB
+        run: uv run license-rag build --db data/licensedb.sqlite
+
+      - name: Show what was built
+        run: uv run license-rag info
+
+      - name: Identify a known license
+        run: |
+          uv run license-rag query --text "Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the Software), to deal in the Software without restriction" --top-k 1 --fail-under high
+
+      - name: Evaluate against the corpus
+        run: uv run python evals/evaluate.py --db data/licensedb.sqlite --limit 60
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: license-rag-database
+          path: data/licensedb.sqlite
+          retention-days: 7
